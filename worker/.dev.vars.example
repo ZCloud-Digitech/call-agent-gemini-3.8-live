@@ -1,0 +1,4 @@
+# Local dev secrets for `npx wrangler dev` (copy to .dev.vars)
+# Production-la: npx wrangler secret put GEMINI_API_KEY
+GEMINI_API_KEY=your-gemini-api-key-here
+GEMINI_MODEL=gemini-3.8-live

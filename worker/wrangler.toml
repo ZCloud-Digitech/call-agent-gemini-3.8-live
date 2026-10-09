@@ -1,0 +1,6 @@
+name = "gemini-voice-token"
+main = "src/index.js"
+compatibility_date = "2026-01-01"
+
+# GEMINI_API_KEY-ஐ inga podaadhe! Secret-ஆ set pannu:
+#   npx wrangler secret put GEMINI_API_KEY
