@@ -2,5 +2,21 @@ name = "gemini-voice-token"
 main = "src/index.js"
 compatibility_date = "2026-01-01"
 
-# GEMINI_API_KEY-ஐ inga podaadhe! Secret-ஆ set pannu:
-#   npx wrangler secret put GEMINI_API_KEY
+# Oru phone call = oru CallSession Durable Object (Twilio <-> Gemini bridge)
+[[durable_objects.bindings]]
+name = "CALLS"
+class_name = "CallSession"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["CallSession"]
+
+[vars]
+GEMINI_MODEL = "gemini-3.8-live"
+
+[observability]
+enabled = true
+
+# Secrets inga podaadhe! worker/.dev.vars-la vachu `npm run secrets` pannu:
+#   GEMINI_API_KEY, FIREBASE_PROJECT_ID, FIREBASE_API_KEY,
+#   TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_NUMBER, ADMIN_TOKEN

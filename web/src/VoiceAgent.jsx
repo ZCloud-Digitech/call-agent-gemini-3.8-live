@@ -10,16 +10,23 @@ import {
 } from "@google/genai";
 import { startMic, AudioPlayer } from "./audio-utils";
 import { RESTAURANT, buildInstructions, TOOLS } from "./restaurant";
-import { toolHandlers } from "./bookings";
+import { createToolHandlers } from "./bookings";
+import * as firebaseStore from "./firebase";
+
+const toolHandlers = createToolHandlers(firebaseStore);
+import BrandFooter from "./BrandFooter";
+import Icon from "./Icon";
 
 // 🔧 Worker URL + model - web/.env-la set pannu
 const TOKEN_URL = import.meta.env.VITE_TOKEN_URL;
 const MODEL = import.meta.env.VITE_GEMINI_MODEL || "gemini-3.8-live";
 
-export default function VoiceAgent() {
+// embedded: admin page "Voice test" tab-ukkulla (admin link, footer venaam)
+export default function VoiceAgent({ embedded = false }) {
   const [status, setStatus] = useState("idle"); // idle | connecting | live
   const [transcript, setTranscript] = useState([]); // [{ role: "user"|"agent"|"system", text }]
   const [booking, setBooking] = useState(null);
+  const [showSystem, setShowSystem] = useState(false);
   const sessionRef = useRef(null);
   const stopMicRef = useRef(null);
   const playerRef = useRef(null);
@@ -53,8 +60,10 @@ export default function VoiceAgent() {
         console.error("tool error:", fc.name, err);
         result = { ok: false, reason: "System error, konjam neram kalichu try pannunga." };
       }
-      addText("system", `🔧 ${fc.name}(${JSON.stringify(fc.args)}) → ${JSON.stringify(result)}`);
+      addText("system", `${fc.name}(${JSON.stringify(fc.args)}) → ${JSON.stringify(result)}`);
       if (fc.name === "save_booking" && result.ok) setBooking({ ...fc.args, id: result.bookingId });
+      if (fc.name === "update_booking" && result.ok) setBooking({ ...result.updated, id: result.updated.bookingId, label: "Updated" });
+      if (fc.name === "cancel_booking" && result.ok) setBooking({ ...result.cancelled, id: result.cancelled.bookingId, label: "Cancelled" });
       functionResponses.push({ id: fc.id, name: fc.name, response: result });
     }
     sessionRef.current?.sendToolResponse({ functionResponses });
@@ -67,7 +76,7 @@ export default function VoiceAgent() {
     // Queue-la irukkra agent audio-ஐ udane drop pannu.
     if (sc?.interrupted) {
       playerRef.current?.interrupt();
-      addText("system", "✋ (interrupted)");
+      addText("system", "Caller interrupted");
     }
 
     for (const part of sc?.modelTurn?.parts || []) {
@@ -166,58 +175,87 @@ export default function VoiceAgent() {
     setStatus("idle");
   }
 
-  return (
-    <div style={{ maxWidth: 640, margin: "0 auto", padding: 24, fontFamily: "system-ui" }}>
-      <h2 style={{ textAlign: "center" }}>🎙️ {RESTAURANT.name} - Booking Assistant</h2>
-      <p style={{ textAlign: "center" }}>
-        {status === "idle" && "Pesa ready. Button press pannu. (Headphones best)"}
-        {status === "connecting" && "Connect aagudhu..."}
-        {status === "live" && "🟢 Live - ippo pesu! Naduvula pesinaalum nirutthum."}
-      </p>
-      <div style={{ textAlign: "center", marginBottom: 16 }}>
-        {status === "live" ? (
-          <button onClick={stop} style={btn("#e74c3c")}>Call-ஐ nிறுthu</button>
+  const live = status === "live";
+  const shown = transcript.filter((l) => showSystem || l.role !== "system");
+
+  const ui = (
+    <div className="stack">
+      <div className="card agent-panel">
+        <div className={`agent-avatar ${live ? "live" : ""}`}>
+          <Icon name="mic" size={24} />
+        </div>
+        <div className="list-main">
+          <div className="strong" style={{ fontSize: 15 }}>Priya · {RESTAURANT.name}</div>
+          <div className="faint small">
+            {status === "idle" && "Start a browser call to test bookings, questions and interruptions. Headphones recommended."}
+            {status === "connecting" && "Connecting to the agent..."}
+            {live && "Live — speak naturally. You can interrupt the agent at any time."}
+          </div>
+        </div>
+        {live ? (
+          <button className="btn btn-danger btn-lg" onClick={stop}>
+            <Icon name="phoneOff" size={16} /> End test call
+          </button>
         ) : (
-          <button onClick={start} disabled={status === "connecting"} style={btn("#27ae60")}>
-            Pesa aarambi
+          <button className="btn btn-primary btn-lg" onClick={start} disabled={status === "connecting"}>
+            <Icon name="mic" size={16} /> {status === "connecting" ? "Connecting..." : "Start test call"}
           </button>
         )}
       </div>
 
       {booking && (
-        <div style={{ background: "#e8f8ef", border: "1px solid #27ae60", borderRadius: 10, padding: 12, marginBottom: 16 }}>
-          <b>✅ Booking #{booking.id}</b>
-          <div>{booking.name} · {booking.phone}</div>
-          <div>{booking.date} · {booking.time} · {booking.people} per</div>
-          {booking.notes && <div>📝 {booking.notes}</div>}
+        <div className="card">
+          <div className="card-head">
+            <h2 className="card-title">Booking result</h2>
+            <span className={`badge ${booking.label === "Cancelled" ? "red" : "green"}`}>{booking.label || "Created"}</span>
+          </div>
+          <div className="kv">
+            <div className="k">Booking ID</div><div className="mono" style={{ color: "var(--text)" }}>#{booking.id}</div>
+            <div className="k">Guest</div><div>{booking.name}{booking.phone && ` · ${booking.phone}`}</div>
+            <div className="k">When</div><div className="num">{booking.date} at {booking.time} · {booking.people} guests</div>
+            {booking.notes && (<><div className="k">Notes</div><div>{booking.notes}</div></>)}
+          </div>
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        {transcript.map((line, i) => (
-          <div key={i} style={bubble(line.role)}>
-            {line.role === "user" && "🧑 "}
-            {line.role === "agent" && "🤖 "}
-            {line.text}
-          </div>
-        ))}
+      <div className="card">
+        <div className="card-head">
+          <h2 className="card-title">Transcript</h2>
+          <label className="toggle">
+            <input type="checkbox" checked={showSystem} onChange={(e) => setShowSystem(e.target.checked)} />
+            System events
+          </label>
+        </div>
+        <div className="transcript">
+          {shown.length === 0 && <div className="empty">The conversation will appear here.</div>}
+          {shown.map((line, i) => (
+            <div key={i} className={`t-row ${line.role}`}>
+              <div className={`t-speaker ${line.role}`}>{line.role === "agent" ? "Priya" : line.role === "user" ? "You" : "System"}</div>
+              <div className="t-text">{line.text}</div>
+              <div className="t-time" />
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   );
+
+  if (embedded) return ui;
+
+  return (
+    <div className="public">
+      <div className="public-head">
+        <div className="row" style={{ gap: 10 }}>
+          <div className="ws-logo">{RESTAURANT.name.split(/\s+/).slice(0, 2).map((w) => w[0]).join("")}</div>
+          <div>
+            <div className="ws-name">{RESTAURANT.name}</div>
+            <div className="ws-sub">AI booking assistant</div>
+          </div>
+        </div>
+        <a href="/admin" className="btn btn-sm">Admin <Icon name="arrowRight" size={13} /></a>
+      </div>
+      {ui}
+      <BrandFooter />
+    </div>
+  );
 }
-
-const btn = (bg) => ({
-  background: bg, color: "#fff", border: "none", borderRadius: 10,
-  padding: "14px 28px", fontSize: 18, cursor: "pointer",
-});
-
-const bubble = (role) => ({
-  alignSelf: role === "user" ? "flex-end" : role === "agent" ? "flex-start" : "center",
-  background: role === "user" ? "#dbeafe" : role === "agent" ? "#f1f5f9" : "transparent",
-  color: role === "system" ? "#888" : "#111",
-  fontSize: role === "system" ? 12 : 15,
-  padding: role === "system" ? 0 : "8px 12px",
-  borderRadius: 10,
-  maxWidth: "85%",
-  wordBreak: "break-word",
-});

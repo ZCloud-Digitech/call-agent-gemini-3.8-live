@@ -2,3 +2,15 @@
 # Production-la: npx wrangler secret put GEMINI_API_KEY
 GEMINI_API_KEY=your-gemini-api-key-here
 GEMINI_MODEL=gemini-3.8-live
+
+# Phone backend
+FIREBASE_PROJECT_ID=your-project-id
+FIREBASE_API_KEY=your-firebase-web-api-key
+TWILIO_ACCOUNT_SID=ACxxxxxxxx
+TWILIO_AUTH_TOKEN=xxxxxxxx
+TWILIO_NUMBER=+1xxxxxxxxxx
+# Admin page "Call" button-ku password maadhiri (neengale random-a vainga)
+ADMIN_TOKEN=change-me-long-random
+
+# Local mattum: ngrok URL (ngrok http 8787 --url <idhu>)
+PUBLIC_URL=https://xxxx.ngrok-free.app

@@ -46,6 +46,38 @@ Deploy pannumbodhu `VITE_TOKEN_URL`-a un `*.workers.dev` URL-ku maathu.
 
 ---
 
+## ☁️ Cloudflare deploy (phone backend - recommended)
+
+`worker/` = full backend: Twilio webhook, call audio bridge (Durable Object),
+admin API, browser test token. PC / ngrok venaam.
+
+```bash
+cd worker
+npx wrangler login          # browser-la Cloudflare login (orae thadava)
+npm run deploy              # https://gemini-voice-token.<subdomain>.workers.dev
+npm run secrets             # worker/.dev.vars secrets -> Cloudflare
+npm run logs                # live call logs paakka
+```
+
+Apram:
+1. Twilio Console → number → "A call comes in" = `https://<worker-url>/twilio/voice` (HTTP POST).
+2. `web/.env`: `VITE_API_URL=https://<worker-url>` and `VITE_TOKEN_URL=https://<worker-url>` → web `npm run dev` restart.
+3. Admin page-la mudhal "Call" click pannumbodhu admin key kekkum = `worker/.dev.vars`-la `ADMIN_TOKEN`.
+
+Calls cut aagi `exceeded CPU` / Durable Object limit errors `npm run logs`-la vandhaa
+Workers Paid plan venum.
+
+---
+
+## ☎️ Real phone call (Twilio)
+
+Twilio Console → number → Voice Configuration → "A call comes in" = **Webhook**,
+`https://<worker-url>/twilio/voice`, **HTTP POST**. Mattha ellam mela irukkura
+Cloudflare deploy section-la. Local test-ku `cd worker && npm run dev` + ngrok
+(`ngrok http 8787`) use pannalaam.
+
+---
+
 ## Step 1 — Gemini API key (FREE, card வேண்டாம்)
 
 1. **aistudio.google.com** → un Gmail (nex.x.startup@gmail.com) vachu login.
